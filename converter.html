@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MARE-AI: 해양사고 재결서 분석 및 자동 시뮬레이터 생성기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <header class="bg-slate-900 border-b border-slate-800 px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white">
+                <i class="fa-solid fa-file-pdf text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-white tracking-wider">MARE-AI 정밀 분석기</h1>
+                <p class="text-xs text-slate-400">재결서 PDF 업로드 기반 교육용 시뮬레이션 데이터 자동 변환기</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+            <label class="text-xs font-semibold text-slate-400">Gemini API Key:</label>
+            <input type="password" id="apiKeyInput" placeholder="AI 인증 키 입력" class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 focus:outline-none focus:border-blue-500 w-44">
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl w-full mx-auto p-4 md:p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+        
+        <div class="md:col-span-5 flex flex-col space-y-4">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 space-y-4">
+                <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-cloud-arrow-up text-blue-500"></i> 1. 재결서 원본 파일 주입
+                </h2>
+                
+                <div class="border-2 border-dashed border-slate-700 hover:border-blue-500/50 rounded-lg p-6 text-center cursor-pointer bg-slate-950/40 transition">
+                    <input type="file" id="pdfFileInput" accept=".pdf" class="hidden">
+                    <label for="pdfFileInput" class="cursor-pointer flex flex-col items-center space-y-2">
+                        <i class="fa-solid fa-file-lines text-3xl text-slate-500"></i>
+                        <span class="text-xs text-slate-300 font-medium">재결서 PDF 파일을 선택하거나 드래그하세요</span>
+                        <span class="text-[10px] text-slate-500" id="fileNameDisplay">선택된 파일 없음</span>
+                    </label>
+                </div>
+
+                <button id="convertBtn" class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-500 text-white font-semibold py-2.5 rounded-lg text-xs transition flex items-center justify-center gap-1.5" disabled>
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>AI 시뮬레이션 변환 개시</span>
+                </button>
+            </div>
+
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex-1 flex flex-col">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    <i class="fa-solid fa-terminal text-emerald-500"></i> 브라우저 실시간 처리 로그
+                </h3>
+                <div id="logConsole" class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-3 font-mono text-[11px] text-emerald-400 overflow-y-auto space-y-1 min-h-[150px] max-h-[300px]">
+                    <div>[대기] 재결서 파일 업로드를 기다리는 중입니다...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="md:col-span-7 flex flex-col">
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-5 flex flex-col h-full space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-code text-amber-500"></i> 2. 추출된 시뮬레이터 표준 데이터 규격 (JSON)
+                    </h2>
+                    <button id="copyJsonBtn" class="text-[10px] bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded transition text-slate-300" disabled>
+                        <i class="fa-solid fa-copy"></i> 복사하기
+                    </button>
+                </div>
+
+                <div class="flex-1 bg-slate-950 rounded-lg border border-slate-800 p-4 font-mono text-xs text-amber-400 overflow-auto max-h-[480px]">
+                    <pre id="jsonOutput" class="whitespace-pre-wrap text-slate-400">AI 변환이 완료되면 여기에 프론트엔드 연동용 JSON 시나리오 코드가 정교하게 출력됩니다.</pre>
+                </div>
+                
+                <div class="text-[11px] text-slate-500 leading-relaxed bg-slate-950/40 p-3 rounded border border-slate-800/80">
+                    💡 **선사 교육 시스템 연동 팁:** 이 툴을 통해 파싱된 데이터 코드를 복사하여 이전에 구축한 '해양사고 AI 시뮬레이터 홈페이지'의 변수값에 바인딩하면, 파이썬이나 데이터베이스 설치 없이도 무한히 새로운 재결서 기반 시뮬레이터를 띄울 수 있습니다.
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-slate-900 border-t border-slate-800 text-center py-3 text-[11px] text-slate-500">
+        <p>© 2026 MARE-AI Project - Browser-Native Data Pipeline Engine</p>
+    </footer>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const fileInput = document.getElementById('pdfFileInput');
+        const fileNameDisplay = document.getElementById('fileNameDisplay');
+        const convertBtn = document.getElementById('convertBtn');
+        const logConsole = document.getElementById('logConsole');
+        const jsonOutput = document.getElementById('jsonOutput');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const copyJsonBtn = document.getElementById('copyJsonBtn');
+
+        let extractedFullText = "";
+
+        function appendLog(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const logRow = document.createElement('div');
+            if(type === 'error') logRow.className = "text-red-400 font-semibold";
+            if(type === 'success') logRow.className = "text-blue-400 font-semibold";
+            logRow.innerText = `[${time}] ${msg}`;
+            logConsole.appendChild(logRow);
+            logConsole.scrollTop = logConsole.scrollHeight;
+        }
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            fileNameDisplay.innerText = file.name;
+            appendLog(`파일 로드됨: ${file.name}`);
+            convertBtn.disabled = true;
+
+            try {
+                appendLog("브라우저 PDF 엔진 가동... 핵심 텍스트 구역 분석을 시작합니다.");
+                const fileReader = new FileReader();
+                
+                fileReader.onload = async function() {
+                    const typedarray = new Uint8Array(this.result);
+                    const pdf = await pdfjsLib.getDocument(typedarray).promise;
+                    let textResult = "";
+
+                    // 토큰 절약을 위한 핵심 단어 필터링 파싱 매커니즘
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        const pageText = textContent.items.map(item => item.str).join(" ");
+                        
+                        // 주문만 적힌 무의미한 첫 페이지나 절차 조항을 제하고 사실 관계와 원인이 기술된 페이지 중심 수집
+                        if (pageText.includes("이유") || pageText.includes("사실") || pageText.includes("원인") || pageText.includes("교훈") || pdf.numPages <= 8) {
+                            textResult += `--- PAGE ${i} ---\n` + pageText + "\n";
+                        }
+                    }
+
+                    // 만약 필터링 후 텍스트가 너무 적으면 전체 파싱으로 우회
+                    if(textResult.length < 1000) {
+                        textResult = "";
+                        for (let i = 1; i <= pdf.numPages; i++) {
+                            const page = await pdf.getPage(i);
+                            const textContent = await page.getTextContent();
+                            textResult += textContent.items.map(item => item.str).join(" ") + "\n";
+                        }
+                    }
+
+                    extractedFullText = textResult;
+                    appendLog(`압축 추출 완료: 핵심 구역 ${extractedFullText.length} 자 수집됨.`, 'success');
+                    convertBtn.disabled = false;
+                };
+
+                fileReader.readAsArrayBuffer(file);
+            } catch (err) {
+                appendLog(`PDF 파싱 에러: ${err.message}`, 'error');
+            }
+        });
+
+        convertBtn.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            if (!apiKey) {
+                alert("상단 우측에 Gemini API Key를 입력해 주세요.");
+                return;
+            }
+
+            if (!extractedFullText) {
+                alert("추출된 텍스트 데이터가 없습니다.");
+                return;
+            }
+
+            convertBtn.disabled = true;
+            appendLog("구글 인공지능 엔진에 데이터 파이프라인 전송 중...", 'info');
+            jsonOutput.innerText = "Gemini AI가 최적화된 토큰 범주 내에서 재결서의 판결 요지를 정밀 맵핑하여 표준 JSON 코드를 설계하고 있습니다. 잠시만 기다려주세요...";
+
+            // JSON 파싱 충돌율을 제로로 만들기 위한 가이드라인 보강
+            const prompt = `
+            당신은 해양안전심판원 재결서 전문 분석관이자 해사 전문 교육공학 엔지니어입니다.
+            주어진 재결서 원본의 사실관계(선종, 조우 상황, 기상)와 양 선박의 인적 과실(Human Error)을 정밀 추출하여 시뮬레이터 연동용 교육 JSON 코드로 변환하십시오.
+            
+            반드시 아래 명시된 JSON Key 구조를 완벽히 유지하여 순수한 JSON 텍스트만 출력해야 합니다. 마크다운 언어인 \`\`\`json 기호나 주석 설명문은 절대 포함하지 마십시오.
+
+            [JSON 출력 요구 구조]
+            {
+              "verdictNumber": "지방해심 제202X-XXX호 형식",
+              "caseName": "어선 OO호 · 화물선 OO호 충돌사건 형식",
+              "shipA": {
+                "name": "선박A 이름(과실비율이 높은 선박)",
+                "specs": "총톤수 / 선종 정보 요약",
+                "desc": "선박A의 사고 당시 정황 요약",
+                "badge": "역할 및 과실비율 명시 (예: 피항의무선 (과실 85%))",
+                "fault": "실제 재결서 원문에서 인정한 선박A의 핵심 결함 요인 요약",
+                "lesson": "사고 방지 교훈에서 도출된 선박A 관점의 대책 요약",
+                "stages": [
+                  {
+                    "stageNum": 1,
+                    "title": "1단계 초동 경계 정세",
+                    "question": "상황 전개 초기 단계에서 지휘관에게 물어볼 안전 법규/경계 수칙 질문",
+                    "choice1": { "text": "실제 재결서에서 범한 결함 조치 행동 (오답)", "isCorrect": false, "feedback": "왜 이 대처가 사고 원인 결함인지 재결서 판단 요지를 근거로 설명" },
+                    "choice2": { "text": "법령에 부합하는 정당한 조치 (정답)", "isCorrect": true, "feedback": "올바른 운항 예방 조치임을 설명하는 피드백" }
+                  },
+                  {
+                    "stageNum": 2,
+                    "title": "2단계 위험 접근 상황",
+                    "question": "상대선과 근접 정세가 수립되거나 침로 오판이 발생하는 시점에서의 조타/당직 질문",
+                    "choice1": { "text": "오답 선택지 내용", "isCorrect": false, "feedback": "오답 근거 설명" },
+                    "choice2": { "text": "정답 선택지 내용", "isCorrect": true, "feedback": "정답 근거 설명" }
+                  },
+                  {
+                    "stageNum": 3,
+                    "title": "3단계 충돌 임박 최후 기동",
+                    "question": "충돌이 극도로 임박했을 때 해상교통안전법 및 COLREGs에 기반한 최종 회피 기동 질문",
+                    "choice1": { "text": "오답 선택지 내용", "isCorrect": false, "feedback": "오답 근거 설명" },
+                    "choice2": { "text": "정답 선택지 내용", "isCorrect": true, "feedback": "정답 근거 설명" }
+                  }
+                ]
+              },
+              "shipB": {
+                "name": "선박B 이름(상대 선박)",
+                "specs": "총톤수 / 선종 정보 요약",
+                "desc": "선박B의 사고 당시 정황 요약",
+                "badge": "역할 및 과실비율 명시 (예: 피항협력선 (과실 15%))",
+                "fault": "실제 재결서 원문에서 지적된 선박B의 협력/방어 동작 소홀 요인 요약",
+                "lesson": "재결서 결론부에서 도출된 방어 운항 및 협력 피항 관점의 교훈 요약",
+                "stages": [
+                  {
+                    "stageNum": 1,
+                    "title": "1단계 상황 조우",
+                    "question": "선박B 입장에서 다가오는 선박A를 식별했을 때의 초동 당직 경계 질문",
+                    "choice1": { "text": "오답 내용", "isCorrect": false, "feedback": "피드백" },
+                    "choice2": { "text": "정답 내용", "isCorrect": true, "feedback": "피드백" }
+                  },
+                  {
+                    "stageNum": 2,
+                    "title": "2단계 협력 동작 이행",
+                    "question": "상대선이 피항하지 않고 위협 접근할 때 주의환기 신호 등 협력 의무 관련 질문",
+                    "choice1": { "text": "오답 내용", "isCorrect": false, "feedback": "피드백" },
+                    "choice2": { "text": "정답 내용", "isCorrect": true, "feedback": "피드백" }
+                  },
+                  {
+                    "stageNum": 3,
+                    "title": "3단계 최후 협력 조치",
+                    "question": "단독 회피 조치 한계선 도달 시 법적 변침/감속 규정 준수 여부 질문",
+                    "choice1": { "text": "오답 내용", "isCorrect": false, "feedback": "피드백" },
+                    "choice2": { "text": "정답 내용", "isCorrect": true, "feedback": "피드백" }
+                  }
+                ]
+              }
+            }
+
+            텍스트 내부에 이중 따옴표가 중복으로 들어가 파싱 에러가 나지 않도록 유의하십시오.
+            [분석할 재결서 텍스트 데이터]
+            ${extractedFullText}
+            `;
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+            
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: "application/json"
+                        }
+                    })
+                });
+
+                if (!response.ok) throw new Error("Gemini API 서버 응답 에러");
+
+                const responseData = await response.json();
+                let aiRawText = responseData.candidates[0].content.parts[0].text;
+                
+                // 마크다운 흔적 지우기 및 데이터 정제 필터링 예외처리 방어막 구축
+                aiRawText = aiRawText.replace(/```json/g, "").replace(/```/g, "").trim();
+                
+                // 안정적인 파싱 테스트 후 바인딩
+                const parsedVerify = JSON.parse(aiRawText);
+                
+                jsonOutput.innerText = JSON.stringify(parsedVerify, null, 2);
+                appendLog("성공: 재결서가 시뮬레이션용 데이터셋 규격으로 완전히 변환되었습니다.", 'success');
+                copyJsonBtn.disabled = false;
+
+            } catch (err) {
+                appendLog(`AI 가공 오류: ${err.message}`, 'error');
+                jsonOutput.innerText = `[변환 실패 원인]\n1. PDF 파일 크기가 너무 커 컨텍스트 용량을 초과했거나,\n2. AI 출력 문자열 중 이중 따옴표 파싱 충돌이 났습니다.\n\n해결책: 대용량 PDF인 경우 특정 핵심 본문 문장만 메모장에 복사한 뒤 변환기를 이용하는 것을 권장합니다.`;
+            } finally {
+                convertBtn.disabled = false;
+            }
+        });
+
+        copyJsonBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(jsonOutput.innerText);
+            alert("JSON 시나리오 데이터가 클립보드에 복사되었습니다!");
+        });
+    </script>
+</body>
+</html>
